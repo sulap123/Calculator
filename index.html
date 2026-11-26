@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Kalkulator</title>
+<style>
+  :root {
+    --bg: #000000;
+    --dark-gray: #333333;
+    --dark-gray-active: #737373;
+    --light-gray: #A5A5A5;
+    --light-gray-active: #D9D9D9;
+    --orange: #FF9F0A;
+    --orange-active: #FFFFFF;
+    --text-white: #FFFFFF;
+    --text-black: #000000;
+  }
+
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--bg);
+    color: var(--text-white);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  .app {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding-top: env(safe-area-inset-top, 20px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 12px);
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  /* Area reset tersembunyi di pojok kiri atas */
+  .secret-reset-zone {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 84px;
+    height: 84px;
+    z-index: 999;
+    background: transparent;
+  }
+
+  /* Layar angka */
+  .display-container {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: 0 10px 18px 10px;
+    min-height: 140px;
+    position: relative;
+    overflow: visible;
+  }
+
+  .display-text {
+    font-weight: 300;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    color: var(--text-white);
+    text-align: right;
+    white-space: nowrap;
+    font-size: 86px;
+    transition: opacity 0.12s ease;
+  }
+
+  .display-text.hidden-for-fall {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Digit yang jatuh bebas */
+  .falling-digit {
+    position: fixed;
+    top: 0;
+    left: 0;
+    font-weight: 300;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    color: var(--text-white);
+    pointer-events: none;
+    z-index: 500;
+    will-change: transform;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+
+  /* Keypad tetap diam */
+  .keypad {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 13px;
+    width: 100%;
+    position: relative;
+    z-index: 10;
+  }
+
+  .btn {
+    border: none;
+    outline: none;
+    height: 78px;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 34px;
+    font-weight: 400;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: background-color 0.08s ease, color 0.08s ease;
+  }
+
+  @media (max-height: 740px) {
+    .btn {
+      height: 66px;
+      font-size: 30px;
+    }
+    .keypad {
+      gap: 10px;
+    }
+    .display-text {
+      font-size: 72px;
+    }
+  }
+
+  @media (min-width: 420px) {
+    .btn {
+      height: 84px;
+      font-size: 36px;
+    }
+  }
+
+  .btn-func {
+    background-color: var(--light-gray);
+    color: var(--text-black);
+    font-size: 30px;
+    font-weight: 400;
+  }
+
+  .btn-func:active, .btn-func.is-pressed {
+    background-color: var(--light-gray-active);
+  }
+
+  .btn-num {
+    background-color: var(--dark-gray);
+    color: var(--text-white);
+  }
+
+  .btn-num:active, .btn-num.is-pressed {
+    background-color: var(--dark-gray-active);
+  }
+
+  .btn-op {
+    background-color: var(--orange);
+    color: var(--text-white);
+    font-size: 38px;
+    font-weight: 400;
+    padding-bottom: 2px;
+  }
+
+  .btn-op:active, .btn-op.is-pressed {
+    background-color: var(--orange-active);
+    color: var(--orange);
+  }
+
+  .btn-op.active-op {
+    background-color: var(--text-white);
+    color: var(--orange);
+  }
+
+  .btn-zero {
+    grid-column: span 2;
+    justify-content: flex-start;
+    padding-left: 30px;
+  }
+</style>
+</head>
+<body>
+  <div class="secret-reset-zone" id="secretResetZone" aria-hidden="true"></div>
+
+  <div class="app" id="app">
+    <div class="display-container" id="displayContainer">
+      <div class="display-text" id="display">0</div>
+    </div>
+
+    <div class="keypad" id="keypad">
+      <button type="button" class="btn btn-func" data-action="clear" id="btnClear">AC</button>
+      <button type="button" class="btn btn-func" data-action="sign">+/-</button>
+      <button type="button" class="btn btn-func" data-action="percent">%</button>
+      <button type="button" class="btn btn-op" data-op="/">÷</button>
+
+      <button type="button" class="btn btn-num" data-digit="7">7</button>
+      <button type="button" class="btn btn-num" data-digit="8">8</button>
+      <button type="button" class="btn btn-num" data-digit="9">9</button>
+      <button type="button" class="btn btn-op" data-op="*">×</button>
+
+      <button type="button" class="btn btn-num" data-digit="4">4</button>
+      <button type="button" class="btn btn-num" data-digit="5">5</button>
+      <button type="button" class="btn btn-num" data-digit="6">6</button>
+      <button type="button" class="btn btn-op" data-op="-">−</button>
+
+      <button type="button" class="btn btn-num" data-digit="1">1</button>
+      <button type="button" class="btn btn-num" data-digit="2">2</button>
+      <button type="button" class="btn btn-num" data-digit="3">3</button>
+      <button type="button" class="btn btn-op" data-op="+">+</button>
+
+      <button type="button" class="btn btn-num btn-zero" data-digit="0">0</button>
+      <button type="button" class="btn btn-num" data-action="decimal">,</button>
+      <button type="button" class="btn btn-op" data-action="equals">=</button>
+    </div>
+  </div>
+
+<script>
+(function() {
+  const displayEl = document.getElementById('display');
+  const displayContainer = document.getElementById('displayContainer');
+  const btnClear = document.getElementById('btnClear');
+  const secretResetZone = document.getElementById('secretResetZone');
+
+  let currentInput = '0';
+  let previousInput = null;
+  let operator = null;
+  let waitingForNewInput = false;
+  let isFallen = false;
+  let animFrameId = null;
+  let fallingPieces = [];
+  let motionPermissionRequested = false;
+
+  function formatDisplayValue(valStr) {
+    if (valStr === 'Error') return 'Error';
+    let sign = '';
+    let body = valStr;
+    if (body.startsWith('-')) {
+      sign = '-';
+      body = body.slice(1);
+    }
+    const parts = body.split('.');
+    const intPart = parts[0] || '0';
+    const decPart = parts[1];
+
+    const intFormatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return sign + intFormatted + (decPart !== undefined ? ',' + decPart : '');
+  }
+
+  function updateFontSize(text) {
+    const len = text.length;
+    const isSmallScreen = window.innerHeight <= 740;
+    let baseSize = isSmallScreen ? 72 : 86;
+
+    if (len <= 6) {
+      displayEl.style.fontSize = baseSize + 'px';
+    } else if (len === 7) {
+      displayEl.style.fontSize = Math.round(baseSize * 0.86) + 'px';
+    } else if (len === 8) {
+      displayEl.style.fontSize = Math.round(baseSize * 0.75) + 'px';
+    } else if (len === 9) {
+      displayEl.style.fontSize = Math.round(baseSize * 0.66) + 'px';
+    } else {
+      displayEl.style.fontSize = Math.round(baseSize * 0.56) + 'px';
+    }
+  }
+
+  function setActiveOperator(op) {
+    document.querySelectorAll('.btn-op[data-op]').forEach(btn => {
+      if (op && btn.dataset.op === op && waitingForNewInput) {
+        btn.classList.add('active-op');
+      } else {
+        btn.classList.remove('active-op');
+      }
+    });
+  }
+
+  function updateClearLabel() {
+    if (currentInput !== '0' || (previousInput !== null && !waitingForNewInput)) {
+      btnClear.textContent = 'C';
+    } else {
+      btnClear.textContent = 'AC';
+    }
+  }
+
+  function renderDisplay() {
+    const formatted = formatDisplayValue(currentInput);
+    displayEl.textContent = formatted;
+    updateFontSize(formatted);
+    updateClearLabel();
+  }
+
+  function inputDigit(digit) {
+    if (isFallen) return;
+
+    if (currentInput === 'Error') {
+      currentInput = digit;
+      waitingForNewInput = false;
+      renderDisplay();
+      return;
+    }
+
+    if (waitingForNewInput) {
+      currentInput = digit;
+      waitingForNewInput = false;
+    } else {
+      const cleanDigits = currentInput.replace(/[^0-9]/g, '');
+      if (cleanDigits.length >= 9) return;
+      if (currentInput === '0') {
+        currentInput = digit;
+      } else {
+        currentInput += digit;
+      }
+    }
+    setActiveOperator(null);
+    renderDisplay();
+  }
+
+  function inputDecimal() {
+    if (isFallen) return;
+    if (currentInput === 'Error') {
+      currentInput = '0.';
+      waitingForNewInput = false;
+      renderDisplay();
+      return;
+    }
+    if (waitingForNewInput) {
+      currentInput = '0.';
+      waitingForNewInput = false;
+    } else if (!currentInput.includes('.')) {
+      currentInput += '.';
+    }
+    setActiveOperator(null);
+    renderDisplay();
+  }
+
+  function toggleSign() {
+    if (isFallen || currentInput === 'Error' || currentInput === '0') return;
+    if (currentInput.startsWith('-')) {
+      currentInput = currentInput.slice(1);
+    } else {
+      currentInput = '-' + currentInput;
+    }
+    renderDisplay();
+  }
+
+  function applyPercent() {
+    if (isFallen || currentInput === 'Error') return;
+    const num = parseFloat(currentInput);
+    if (isNaN(num)) return;
+    const res = num / 100;
+    currentInput = formatNumberResult(res);
+    renderDisplay();
+  }
+
+  function formatNumberResult(num) {
+    if (!isFinite(num) || isNaN(num)) return 'Error';
+    const rounded = Math.round(num * 1e9) / 1e9;
+    let str = String(rounded);
+    if (str.includes('e')) {
+      str = rounded.toFixed(6).replace(/\.?0+$/, '');
+    }
+    return str;
+  }
+
+  function compute(a, b, op) {
+    const numA = parseFloat(a);
+    const numB = parseFloat(b);
+    if (isNaN(numA) || isNaN(numB)) return 'Error';
+    let res = 0;
+    switch (op) {
+      case '+': res = numA + numB; break;
+      case '-': res = numA - numB; break;
+      case '*': res = numA * numB; break;
+      case '/':
+        if (numB === 0) return 'Error';
+        res = numA / numB;
+        break;
+      default: return b;
+    }
+    return formatNumberResult(res);
+  }
+
+  function handleOperator(nextOp) {
+    if (isFallen || currentInput === 'Error') return;
+
+    if (operator && !waitingForNewInput && previousInput !== null) {
+      const result = compute(previousInput, currentInput, operator);
+      currentInput = result;
+      previousInput = result === 'Error' ? null : result;
+    } else if (previousInput === null) {
+      previousInput = currentInput;
+    }
+
+    operator = nextOp;
+    waitingForNewInput = true;
+    renderDisplay();
+    setActiveOperator(nextOp);
+  }
+
+  function handleEquals() {
+    if (isFallen || currentInput === 'Error') return;
+    if (operator && previousInput !== null) {
+      const result = compute(previousInput, currentInput, operator);
+      currentInput = result;
+      previousInput = null;
+      operator = null;
+      waitingForNewInput = true;
+      setActiveOperator(null);
+      renderDisplay();
+    }
+  }
+
+  function handleClear() {
+    if (isFallen) return;
+    if (btnClear.textContent === 'C' && currentInput !== 'Error') {
+      currentInput = '0';
+      waitingForNewInput = false;
+      renderDisplay();
+      if (operator) setActiveOperator(operator);
+    } else {
+      currentInput = '0';
+      previousInput = null;
+      operator = null;
+      waitingForNewInput = false;
+      setActiveOperator(null);
+      renderDisplay();
+    }
+  }
+
+  function clearFallingPieces() {
+    if (animFrameId) {
+      cancelAnimationFrame(animFrameId);
+      animFrameId = null;
+    }
+    fallingPieces.forEach(p => {
+      if (p.el && p.el.parentNode) {
+        p.el.parentNode.removeChild(p.el);
+      }
+    });
+    fallingPieces = [];
+  }
+
+  function resetMagicState() {
+    clearFallingPieces();
+    isFallen = false;
+    displayEl.classList.remove('hidden-for-fall');
+    currentInput = '0';
+    previousInput = null;
+    operator = null;
+    waitingForNewInput = false;
+    setActiveOperator(null);
+    renderDisplay();
+  }
+
+  function triggerFallEffect() {
+    if (isFallen) return;
+    isFallen = true;
+    setActiveOperator(null);
+    clearFallingPieces();
+
+    const text = displayEl.textContent || '0';
+    const computedFontSize = parseFloat(window.getComputedStyle(displayEl).fontSize) || 80;
+    const range = document.createRange();
+    const textNode = displayEl.firstChild;
+
+    displayEl.classList.add('hidden-for-fall');
+
+    const viewportHeight = window.innerHeight;
+    const safeBottom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sab')) || 0;
+    const floorY = viewportHeight - safeBottom - 12;
+
+    if (textNode && text.length > 0) {
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (ch === ' ') continue;
+
+        let rect;
+        try {
+          range.setStart(textNode, i);
+          range.setEnd(textNode, i + 1);
+          rect = range.getBoundingClientRect();
+        } catch (e) {
+          const dRect = displayEl.getBoundingClientRect();
+          rect = {
+            left: dRect.left + (i * computedFontSize * 0.52),
+            top: dRect.top,
+            width: computedFontSize * 0.52,
+            height: dRect.height
+          };
+        }
+
+        const el = document.createElement('div');
+        el.className = 'falling-digit';
+        el.textContent = ch;
+        el.style.fontSize = computedFontSize + 'px';
+        document.body.appendChild(el);
+
+        const actualRect = el.getBoundingClientRect();
+        const height = actualRect.height || rect.height || computedFontSize;
+        const width = actualRect.width || rect.width || (computedFontSize * 0.5);
+
+        const startX = rect.left || (displayEl.getBoundingClientRect().left + i * width);
+        const startY = rect.top || displayEl.getBoundingClientRect().top;
+
+        fallingPieces.push({
+          el: el,
+          x: startX,
+          y: startY,
+          width: width,
+          height: height,
+          vx: (Math.random() - 0.5) * 34,
+          vy: -(25 + Math.random() * 55),
+          angle: 0,
+          vAngle: (Math.random() - 0.5) * 2.4,
+          delay: i * 0.045,
+          elapsed: 0,
+          started: false,
+          settled: false
+        });
+      }
+    }
+
+    let lastTime = performance.now();
+    const gravity = 1580;
+    const bounceDamping = 0.36;
+    const frictionX = 0.88;
+
+    function step(now) {
+      const dt = Math.min((now - lastTime) / 1000, 0.033);
+      lastTime = now;
+
+      let allSettled = true;
+
+      for (let i = 0; i < fallingPieces.length; i++) {
+        const p = fallingPieces[i];
+        p.elapsed += dt;
+
+        if (p.elapsed < p.delay) {
+          allSettled = false;
+          p.el.style.transform = `translate3d(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px, 0) rotate(0deg)`;
+          continue;
+        }
+
+        if (!p.started) {
+          p.started = true;
+        }
+
+        if (!p.settled) {
+          allSettled = false;
+          p.vy += gravity * dt;
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.angle += p.vAngle * dt;
+
+          const maxBottom = floorY - p.height;
+          if (p.y >= maxBottom) {
+            p.y = maxBottom;
+            if (Math.abs(p.vy) > 95) {
+              p.vy = -p.vy * bounceDamping;
+              p.vx *= frictionX;
+              p.vAngle *= 0.65;
+            } else {
+              p.vy = 0;
+              p.vx = 0;
+              p.vAngle = 0;
+              p.angle *= 0.2;
+              p.settled = true;
+            }
+          }
+
+          if (p.x < 6) {
+            p.x = 6;
+            p.vx = Math.abs(p.vx) * 0.5;
+          } else if (p.x + p.width > window.innerWidth - 6) {
+            p.x = window.innerWidth - 6 - p.width;
+            p.vx = -Math.abs(p.vx) * 0.5;
+          }
+        }
+
+        p.el.style.transform = `translate3d(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px, 0) rotate(${p.angle.toFixed(2)}rad)`;
+      }
+
+      if (!allSettled) {
+        animFrameId = requestAnimationFrame(step);
+      } else {
+        animFrameId = null;
+      }
+    }
+
+    animFrameId = requestAnimationFrame(step);
+  }
+
+  function requestMotionPermissionIfNeeded() {
+    if (motionPermissionRequested) return;
+    motionPermissionRequested = true;
+    if (
+      typeof DeviceMotionEvent !== 'undefined' &&
+      typeof DeviceMotionEvent.requestPermission === 'function'
+    ) {
+      DeviceMotionEvent.requestPermission()
+        .then(state => {
+          if (state === 'granted') {
+            bindMotionListeners();
+          }
+        })
+        .catch(() => {});
+    } else {
+      bindMotionListeners();
+    }
+  }
+
+  let lastAccel = null;
+  let lastShakeTime = 0;
+
+  function handleDeviceMotion(e) {
+    if (isFallen) return;
+    const acc = e.accelerationIncludingGravity || e.acceleration;
+    if (!acc || acc.x === null || acc.y === null || acc.z === null) return;
+
+    const now = Date.now();
+    if (!lastAccel) {
+      lastAccel = { x: acc.x, y: acc.y, z: acc.z };
+      return;
+    }
+
+    const delta = Math.abs(acc.x - lastAccel.x) +
+                  Math.abs(acc.y - lastAccel.y) +
+                  Math.abs(acc.z - lastAccel.z);
+    lastAccel = { x: acc.x, y: acc.y, z: acc.z };
+
+    if (delta > 28 && now - lastShakeTime > 800) {
+      lastShakeTime = now;
+      triggerFallEffect();
+    }
+  }
+
+  function handleDeviceOrientation(e) {
+    if (isFallen) return;
+    if (typeof e.beta === 'number' && Math.abs(e.beta) > 78) {
+      triggerFallEffect();
+    }
+  }
+
+  function bindMotionListeners() {
+    window.addEventListener('devicemotion', handleDeviceMotion, { passive: true });
+    window.addEventListener('deviceorientation', handleDeviceOrientation, { passive: true });
+  }
+
+  if (
+    typeof DeviceMotionEvent !== 'undefined' &&
+    typeof DeviceMotionEvent.requestPermission !== 'function'
+  ) {
+    bindMotionListeners();
+  }
+
+  document.querySelectorAll('#keypad .btn').forEach(btn => {
+    btn.addEventListener('pointerdown', () => {
+      requestMotionPermissionIfNeeded();
+      btn.classList.add('is-pressed');
+    });
+
+    btn.addEventListener('pointerup', () => {
+      btn.classList.remove('is-pressed');
+    });
+
+    btn.addEventListener('pointercancel', () => {
+      btn.classList.remove('is-pressed');
+    });
+
+    btn.addEventListener('pointerleave', () => {
+      btn.classList.remove('is-pressed');
+    });
+
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (btn.dataset.digit !== undefined) {
+        inputDigit(btn.dataset.digit);
+      } else if (btn.dataset.op !== undefined) {
+        handleOperator(btn.dataset.op);
+      } else if (btn.dataset.action === 'decimal') {
+        inputDecimal();
+      } else if (btn.dataset.action === 'sign') {
+        toggleSign();
+      } else if (btn.dataset.action === 'percent') {
+        applyPercent();
+      } else if (btn.dataset.action === 'equals') {
+        handleEquals();
+      } else if (btn.dataset.action === 'clear') {
+        handleClear();
+      }
+    });
+  });
+
+  let clearLongPressTimer = null;
+  btnClear.addEventListener('pointerdown', () => {
+    clearLongPressTimer = setTimeout(() => {
+      triggerFallEffect();
+    }, 1500);
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => {
+    btnClear.addEventListener(ev, () => {
+      if (clearLongPressTimer) {
+        clearTimeout(clearLongPressTimer);
+        clearLongPressTimer = null;
+      }
+    });
+  });
+
+  let displayTapTimestamps = [];
+  displayContainer.addEventListener('pointerdown', () => {
+    requestMotionPermissionIfNeeded();
+    const now = Date.now();
+    displayTapTimestamps = displayTapTimestamps.filter(t => now - t < 550);
+    displayTapTimestamps.push(now);
+    if (displayTapTimestamps.length >= 3) {
+      displayTapTimestamps = [];
+      triggerFallEffect();
+    }
+  });
+
+  let resetTapTimestamps = [];
+  let resetLongPressTimer = null;
+
+  secretResetZone.addEventListener('pointerdown', () => {
+    const now = Date.now();
+    resetTapTimestamps = resetTapTimestamps.filter(t => now - t < 700);
+    resetTapTimestamps.push(now);
+    if (resetTapTimestamps.length >= 4) {
+      resetTapTimestamps = [];
+      resetMagicState();
+      return;
+    }
+
+    resetLongPressTimer = setTimeout(() => {
+      resetMagicState();
+    }, 2000);
+  });
+
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => {
+    secretResetZone.addEventListener(ev, () => {
+      if (resetLongPressTimer) {
+        clearTimeout(resetLongPressTimer);
+        resetLongPressTimer = null;
+      }
+    });
+  });
+
+  window.addEventListener('resize', () => {
+    if (!isFallen) {
+      updateFontSize(displayEl.textContent || '0');
+    }
+  });
+
+  renderDisplay();
+})();
+</script>
+</body>
+</html>
